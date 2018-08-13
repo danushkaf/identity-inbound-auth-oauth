@@ -19,7 +19,10 @@
 package org.wso2.carbon.identity.oauth2.dto;
 
 import org.wso2.carbon.identity.application.authentication.framework.model.AuthenticatedUser;
+import org.wso2.carbon.identity.oauth2.model.HttpRequestHeader;
+import org.wso2.carbon.identity.openidconnect.model.RequestObject;
 
+import javax.servlet.http.Cookie;
 import java.util.LinkedHashSet;
 import java.util.Properties;
 
@@ -31,12 +34,51 @@ public class OAuth2AuthorizeReqDTO {
     private AuthenticatedUser user;
     private String password;
     private LinkedHashSet acrValues;
+    private String selectedAcr;
     private String nonce;
     private String pkceCodeChallenge;
     private String pkceCodeChallengeMethod;
     private String tenantDomain;
     private long authTime;
     private String essentialClaims;
+    private long maxAge;
+    private HttpRequestHeader[] httpRequestHeaders;
+    private Cookie[] cookies;
+    private RequestObject requestObject;
+    private String requestUriParamClaims;
+    private String sessionDataKey;
+
+    public String getSessionDataKey() {
+        return sessionDataKey;
+    }
+
+    public void setSessionDataKey(String sessionDataKey) {
+        this.sessionDataKey = sessionDataKey;
+    }
+
+    public long getMaxAge() {
+        return maxAge;
+    }
+
+    public void setMaxAge(long maxAge) {
+        this.maxAge = maxAge;
+    }
+
+    public RequestObject getRequestObject() {
+        return requestObject;
+    }
+
+    public void setRequestObject(RequestObject requestObject) {
+        this.requestObject = requestObject;
+    }
+
+    public String getRequestUriParamClaims() {
+        return requestUriParamClaims;
+    }
+
+    public void setRequestUriParamClaims(String requestUriParamClaims) {
+        this.requestUriParamClaims = requestUriParamClaims;
+    }
 
     public String getEssentialClaims() {
         return essentialClaims;
@@ -113,6 +155,14 @@ public class OAuth2AuthorizeReqDTO {
         this.acrValues = acrValues;
     }
 
+    public String getSelectedAcr() {
+        return selectedAcr;
+    }
+
+    public void setSelectedAcr(String selectedAcr) {
+        this.selectedAcr = selectedAcr;
+    }
+
     public void setNonce(String nonce) {
         this.nonce = nonce;
     }
@@ -151,5 +201,21 @@ public class OAuth2AuthorizeReqDTO {
 
     public void setTenantDomain(String tenantDomain) {
         this.tenantDomain = tenantDomain;
+    }
+
+    public void setHttpRequestHeaders(HttpRequestHeader[] httpRequestHeaders) {
+        this.httpRequestHeaders = httpRequestHeaders;
+    }
+
+    public HttpRequestHeader[] getHttpRequestHeaders() {
+        return this.httpRequestHeaders;
+    }
+
+    public void setCookie(Cookie[] cookies) {
+        this.cookies = cookies;
+    }
+
+    public Cookie[] getCookie() {
+        return this.cookies;
     }
 }

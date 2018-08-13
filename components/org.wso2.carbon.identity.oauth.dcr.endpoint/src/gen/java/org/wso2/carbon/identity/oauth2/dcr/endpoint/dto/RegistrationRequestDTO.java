@@ -33,7 +33,13 @@ public class RegistrationRequestDTO  {
   
   
   private String url = null;
-  
+
+
+  private String clientId = null;
+
+
+  private String clientSecret = null;
+
   
   private List<String> contacts = new ArrayList<String>();
   
@@ -45,6 +51,9 @@ public class RegistrationRequestDTO  {
   
   
   private List<String> responseTypes = new ArrayList<String>();
+
+
+  private String tokenType = null;
 
   
   /**
@@ -118,7 +127,31 @@ public class RegistrationRequestDTO  {
     this.url = url;
   }
 
-  
+
+  /**
+   **/
+  @ApiModelProperty(value = "")
+  @JsonProperty("ext_param_client_id")
+  public String getClientId() {
+    return clientId;
+  }
+  public void setClientId(String clientId) {
+    this.clientId = clientId;
+  }
+
+
+  /**
+   **/
+  @ApiModelProperty(value = "")
+  @JsonProperty("ext_param_client_secret")
+  public String getClientSecret() {
+    return clientSecret;
+  }
+  public void setClientSecret(String clientSecret) {
+    this.clientSecret = clientSecret;
+  }
+
+
   /**
    **/
   @ApiModelProperty(value = "")
@@ -166,7 +199,16 @@ public class RegistrationRequestDTO  {
     this.responseTypes = responseTypes;
   }
 
-  
+
+  @ApiModelProperty(value = "")
+  @JsonProperty("token_type_extension")
+  public String getTokenType() {
+    return tokenType;
+  }
+
+  public void setTokenType(String tokenType) {
+    this.tokenType = tokenType;
+  }
 
   @Override
   public String toString()  {
@@ -179,10 +221,13 @@ public class RegistrationRequestDTO  {
     sb.append("  application_type: ").append(applicationType).append("\n");
     sb.append("  jwks_uri: ").append(jwksUri).append("\n");
     sb.append("  url: ").append(url).append("\n");
+    sb.append("  ext_param_client_id: ").append(clientId).append("\n");
+    sb.append("  ext_param_client_secret: ").append(clientSecret).append("\n");
     sb.append("  contacts: ").append(contacts).append("\n");
     sb.append("  post_logout_redirect_uris: ").append(postLogoutRedirectUris).append("\n");
     sb.append("  request_uris: ").append(requestUris).append("\n");
     sb.append("  response_types: ").append(responseTypes).append("\n");
+    sb.append("  token_type_extension: ").append(tokenType).append("\n");
     sb.append("}\n");
     return sb.toString();
   }

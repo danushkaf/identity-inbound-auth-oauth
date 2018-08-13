@@ -20,7 +20,6 @@ import org.apache.commons.lang.StringUtils;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.wso2.carbon.identity.core.util.IdentityDatabaseUtil;
-import org.wso2.carbon.identity.oauth2.IdentityOAuth2ScopeClientException;
 import org.wso2.carbon.identity.oauth2.IdentityOAuth2ScopeException;
 import org.wso2.carbon.identity.oauth2.IdentityOAuth2ScopeServerException;
 import org.wso2.carbon.identity.oauth2.Oauth2ScopeConstants;
@@ -32,12 +31,12 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
-import java.util.ArrayList;
-import java.util.Set;
 import java.util.Map;
-import java.util.HashMap;
+import java.util.Set;
 
 /**
  * Data Access Layer functionality for Scope management. This includes storing, updating, deleting and retrieving scopes
@@ -94,20 +93,27 @@ public class ScopeMgtDAO {
 
         Set<Scope> scopes = new HashSet<>();
         Map<Integer, Scope> scopeMap = new HashMap<>();
+        String sql;
 
         try (Connection conn = IdentityDatabaseUtil.getDBConnection()) {
-
-            try (PreparedStatement ps = conn.prepareStatement(SQLQueries.RETRIEVE_ALL_SCOPES)) {
+            if (conn.getMetaData().getDriverName().contains(Oauth2ScopeConstants.DataBaseType.ORACLE)) {
+                sql = SQLQueries.RETRIEVE_ALL_SCOPES_ORACLE;
+            } else {
+                sql = SQLQueries.RETRIEVE_ALL_SCOPES;
+            }
+            try (PreparedStatement ps = conn.prepareStatement(sql)) {
                 ps.setInt(1, tenantID);
                 try (ResultSet rs = ps.executeQuery()) {
                     while (rs.next()) {
                         int scopeID = rs.getInt(1);
                         String name = rs.getString(2);
-                        String description = rs.getString(3);
-                        final String binding = rs.getString(4);
+                        String displayName = rs.getString(3);
+                        String description = rs.getString(4);
+                        final String binding = rs.getString(5);
                         if (scopeMap.containsKey(scopeID) && scopeMap.get(scopeID) != null) {
                             scopeMap.get(scopeID).setName(name);
                             scopeMap.get(scopeID).setDescription(description);
+                            scopeMap.get(scopeID).setDisplayName(displayName);
                             if (binding != null) {
                                 if (scopeMap.get(scopeID).getBindings() != null) {
                                     scopeMap.get(scopeID).addBinding(binding);
@@ -118,7 +124,7 @@ public class ScopeMgtDAO {
                                 }
                             }
                         } else {
-                            scopeMap.put(scopeID, new Scope(name, description, new ArrayList<String>()));
+                            scopeMap.put(scopeID, new Scope(name, displayName, description, new ArrayList<String>()));
                             if (binding != null) {
                                 scopeMap.get(scopeID).addBinding(binding);
                             }
@@ -186,11 +192,13 @@ public class ScopeMgtDAO {
                     while (rs.next()) {
                         int scopeID = rs.getInt(1);
                         String name = rs.getString(2);
-                        String description = rs.getString(3);
-                        final String binding = rs.getString(4);
+                        String displayName = rs.getString(3);
+                        String description = rs.getString(4);
+                        final String binding = rs.getString(5);
                         if (scopeMap.containsKey(scopeID) && scopeMap.get(scopeID) != null) {
                             scopeMap.get(scopeID).setName(name);
                             scopeMap.get(scopeID).setDescription(description);
+                            scopeMap.get(scopeID).setDisplayName(displayName);
                             if (binding != null) {
                                 if (scopeMap.get(scopeID).getBindings() != null) {
                                     scopeMap.get(scopeID).addBinding(binding);
@@ -201,7 +209,7 @@ public class ScopeMgtDAO {
                                 }
                             }
                         } else {
-                            scopeMap.put(scopeID, new Scope(name, description, new ArrayList<String>()));
+                            scopeMap.put(scopeID, new Scope(name, displayName, description, new ArrayList<String>()));
                             if (binding != null) {
                                 scopeMap.get(scopeID).addBinding(binding);
 
@@ -236,28 +244,37 @@ public class ScopeMgtDAO {
         }
 
         Scope scope = null;
-
+        String sql;
         try (Connection conn = IdentityDatabaseUtil.getDBConnection()) {
 
-            try (PreparedStatement ps = conn.prepareStatement(SQLQueries.RETRIEVE_SCOPE_BY_NAME)) {
+            if (conn.getMetaData().getDriverName().contains(Oauth2ScopeConstants.DataBaseType.ORACLE)) {
+                sql = SQLQueries.RETRIEVE_SCOPE_BY_NAME_ORACLE;
+            } else {
+                sql = SQLQueries.RETRIEVE_SCOPE_BY_NAME;
+            }
+            try (PreparedStatement ps = conn.prepareStatement(sql)) {
                 ps.setString(1, name);
                 ps.setInt(2, tenantID);
                 try (ResultSet rs = ps.executeQuery()) {
 
                     String description = null;
+                    String displayName = null;
                     List<String> bindings = new ArrayList<>();
 
                     while (rs.next()) {
                         if (StringUtils.isBlank(description)) {
                             description = rs.getString(2);
                         }
-                        if (StringUtils.isNotBlank(rs.getString(3))) {
-                            bindings.add(rs.getString(3));
+                        if (StringUtils.isBlank(displayName)) {
+                            displayName = rs.getString(3);
+                        }
+                        if (StringUtils.isNotBlank(rs.getString(4))) {
+                            bindings.add(rs.getString(4));
                         }
                     }
 
                     if (StringUtils.isNotBlank(name) && StringUtils.isNotBlank(description)) {
-                        scope = new Scope(name, description, bindings);
+                        scope = new Scope(name, displayName, description, bindings);
                     }
                 }
             }
@@ -375,8 +392,9 @@ public class ScopeMgtDAO {
             int scopeID = 0;
             try (PreparedStatement ps = conn.prepareStatement(SQLQueries.ADD_SCOPE)) {
                 ps.setString(1, scope.getName());
-                ps.setString(2, scope.getDescription());
-                ps.setInt(3, tenantID);
+                ps.setString(2, scope.getDisplayName());
+                ps.setString(3, scope.getDescription());
+                ps.setInt(4, tenantID);
                 ps.execute();
 
                 try (ResultSet rs = ps.getGeneratedKeys()) {

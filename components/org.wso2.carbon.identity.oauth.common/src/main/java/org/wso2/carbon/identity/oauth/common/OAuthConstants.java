@@ -20,8 +20,14 @@ package org.wso2.carbon.identity.oauth.common;
 
 public final class OAuthConstants {
 
+    //OIDC request headers.
+    public static final String AMR = "amr";
+    public static final String ACR = "acr";
+    public static final String AT_HASH = "at_hash";
+
     //OAuth2 request headers.
     public static final String HTTP_REQ_HEADER_AUTHZ = "Authorization";
+    public static final String HTTP_REQ_HEADER_AUTH_METHOD_BASIC = "Basic";
 
     // OAuth2 response headers
     public static final String HTTP_RESP_HEADER_CACHE_CONTROL = "Cache-Control";
@@ -80,7 +86,13 @@ public final class OAuthConstants {
     public static final String CLIENT_AUTH_CREDENTIAL_VALIDATION = "StrictClientCredentialValidation";
     public static final String ACCESS_TOKEN = "accessToken";
     public static final String ID_TOKEN = "id_token";
+    public static final String USERINFO = "userinfo";
     public static final String AUTHZ_CODE = "AuthorizationCode";
+
+    //Constants for reading EndpointConfig.properties
+    public static final String CONFIG_RELATIVE_PATH = "./repository/conf/identity/EndpointConfig.properties";
+    public static final String CLIENT_TRUST_STORE_PASSWORD = "Carbon.Security.TrustStore.Password";
+    public static final String CLIENT_TRUST_STORE = "client.trustStore";
 
     //OAuth PKCE request parameters
     public static final String OAUTH_PKCE_CODE_VERIFIER = "code_verifier";
@@ -91,6 +103,10 @@ public final class OAuthConstants {
     //Response types
     public static final String NONE = "none";
     public static final String TOKEN = "token";
+    public static final String CODE_TOKEN = "code token";
+    public static final String CODE_IDTOKEN = "code id_token";
+    public static final String CODE_IDTOKEN_TOKEN = "code id_token token";
+    public static final String IDTOKEN_TOKEN = "id_token token";
 
     //Constants used for OAuth/OpenID Connect Configuration UI
     public static final String CALLBACK_URL_REGEXP_PREFIX = "regexp=";
@@ -108,6 +124,7 @@ public final class OAuthConstants {
     public static final String OAUTH_INTERCEPTOR_PROXY = "OauthDataInterceptorHandlerProxy";
 
     public static final String RESPONSE_HEADERS_PROPERTY = "RESPONSE_HEADERS";
+    public static final String CLIENT_AUTHN_CONTEXT = "oauth.client.authentication.context";
 
 
     //Constants used for multiple scopes
@@ -168,6 +185,7 @@ public final class OAuthConstants {
         public static final String AUTH_TIME = "auth_time";
         public static final String ESSENTIAL = "essential";
         public static final String USERINFO = "userinfo";
+        public static final String CLIENT_ID = "client_id";
 
         private OAuth20Params() {
 
@@ -290,13 +308,47 @@ public final class OAuthConstants {
         public static final String PHONE_NUMBER_VERIFIED = "phone_number_verified";
         public static final String EMAIL_VERIFIED = "email_verified";
         public static final String ADDRESS = "address";
+        public static final String CUSTOM = "custom";
         public static final String AZP = "azp";
         public static final String AUTH_TIME = "auth_time";
         public static final String AT_HASH = "at_hash";
         public static final String NONCE = "nonce";
         public static final String ACR = "acr";
+        public static final String MAX_AGE = "max_age";
+        // OIDC Specification : http://openid.net/specs/openid-connect-core-1_0.html
+        public static final String C_HASH = "c_hash";
+        public static final String SESSION_ID_CLAIM = "sid";
 
         private OIDCClaims() {}
+    }
+
+    public static class OIDCConfigProperties {
+        public static final String REQUEST_OBJECT_SIGNED = "requestObjectSigned";
+        public static final String ID_TOKEN_ENCRYPTED = "idTokenEncrypted";
+        public static final String ID_TOKEN_ENCRYPTION_ALGORITHM = "idTokenEncryptionAlgorithm";
+        public static final String ID_TOKEN_ENCRYPTION_METHOD = "idTokenEncryptionMethod";
+        public static final String BACK_CHANNEL_LOGOUT_URL = "backChannelLogoutURL";
+        public static final String TOKEN_TYPE = "tokenType";
+
+        private OIDCConfigProperties() { }
+    }
+
+    public static class SignatureAlgorithms {
+        public static final String NONE = "NONE";
+        public static final String SHA256_WITH_RSA = "SHA256withRSA";
+        public static final String SHA384_WITH_RSA = "SHA384withRSA";
+        public static final String SHA512_WITH_RSA = "SHA512withRSA";
+        public static final String SHA256_WITH_HMAC = "SHA256withHMAC";
+        public static final String SHA384_WITH_HMAC = "SHA384withHMAC";
+        public static final String SHA512_WITH_HMAC = "SHA512withHMAC";
+        public static final String SHA256_WITH_EC = "SHA256withEC";
+        public static final String SHA384_WITH_EC = "SHA384withEC";
+        public static final String SHA512_WITH_EC = "SHA512withEC";
+        public static final String SHA256 = "SHA-256";
+        public static final String SHA384 = "SHA-384";
+        public static final String SHA512 = "SHA-512";
+
+        private SignatureAlgorithms() {}
     }
 
     private OAuthConstants() {

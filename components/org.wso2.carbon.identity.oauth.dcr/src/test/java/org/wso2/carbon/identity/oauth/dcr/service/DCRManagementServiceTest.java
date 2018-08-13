@@ -18,6 +18,7 @@
 
 package org.wso2.carbon.identity.oauth.dcr.service;
 
+import org.mockito.Matchers;
 import org.powermock.core.classloader.annotations.PrepareForTest;
 import org.powermock.modules.testng.PowerMockTestCase;
 import org.testng.annotations.BeforeTest;
@@ -54,7 +55,7 @@ import static org.wso2.carbon.identity.oauth.common.OAuthConstants.OAuth10AParam
 /**
  * Unit test covering DCRManagementService
  */
-@PrepareForTest(DCRManagementService.class)
+@PrepareForTest({DCRManagementService.class})
 public class DCRManagementServiceTest extends PowerMockTestCase {
 
     private DCRManagementService dcrManagementService;
@@ -269,6 +270,9 @@ public class DCRManagementServiceTest extends PowerMockTestCase {
 
         when(mockOAuthAdminService
                 .getOAuthApplicationDataByAppName(applicationName)).thenReturn(oAuthConsumerApp);
+
+        when(mockOAuthAdminService.registerAndRetrieveOAuthApplicationData(
+                Matchers.any(OAuthConsumerAppDTO.class))).thenReturn(oAuthConsumerApp);
 
         RegistrationResponseProfile registrationRqstProfile = dcrManagementService.registerOAuthApplication
                 (registrationRequestProfile);

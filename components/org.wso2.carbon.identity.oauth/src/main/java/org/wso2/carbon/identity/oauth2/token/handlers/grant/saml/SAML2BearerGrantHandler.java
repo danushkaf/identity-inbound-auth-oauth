@@ -20,6 +20,7 @@ package org.wso2.carbon.identity.oauth2.token.handlers.grant.saml;
 
 import org.apache.commons.codec.binary.Base64;
 import org.apache.commons.collections.CollectionUtils;
+import org.apache.commons.lang.ArrayUtils;
 import org.apache.commons.lang.StringUtils;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
@@ -41,10 +42,15 @@ import org.opensaml.xml.validation.ValidationException;
 import org.w3c.dom.NodeList;
 import org.wso2.carbon.base.MultitenantConstants;
 import org.wso2.carbon.identity.application.authentication.framework.model.AuthenticatedUser;
+import org.wso2.carbon.identity.application.authentication.framework.util.FrameworkConstants;
+import org.wso2.carbon.identity.application.authentication.framework.util.FrameworkUtils;
 import org.wso2.carbon.identity.application.common.IdentityApplicationManagementException;
+import org.wso2.carbon.identity.application.common.model.ClaimMapping;
 import org.wso2.carbon.identity.application.common.model.FederatedAuthenticatorConfig;
 import org.wso2.carbon.identity.application.common.model.IdentityProvider;
+import org.wso2.carbon.identity.application.common.model.PermissionsAndRoleConfig;
 import org.wso2.carbon.identity.application.common.model.Property;
+import org.wso2.carbon.identity.application.common.model.RoleMapping;
 import org.wso2.carbon.identity.application.common.model.ServiceProvider;
 import org.wso2.carbon.identity.application.common.util.IdentityApplicationConstants;
 import org.wso2.carbon.identity.application.common.util.IdentityApplicationManagementUtil;
@@ -56,9 +62,11 @@ import org.wso2.carbon.identity.oauth.common.OAuthConstants;
 import org.wso2.carbon.identity.oauth.config.OAuthServerConfiguration;
 import org.wso2.carbon.identity.oauth.internal.OAuthComponentServiceHolder;
 import org.wso2.carbon.identity.oauth2.IdentityOAuth2Exception;
+import org.wso2.carbon.identity.oauth2.dto.OAuth2AccessTokenRespDTO;
 import org.wso2.carbon.identity.oauth2.internal.OAuth2ServiceComponentHolder;
 import org.wso2.carbon.identity.oauth2.token.OAuthTokenReqMessageContext;
 import org.wso2.carbon.identity.oauth2.token.handlers.grant.AbstractAuthorizationGrantHandler;
+import org.wso2.carbon.identity.oauth2.util.ClaimsUtil;
 import org.wso2.carbon.identity.oauth2.util.OAuth2Util;
 import org.wso2.carbon.identity.oauth2.util.X509CredentialImpl;
 import org.wso2.carbon.idp.mgt.IdentityProviderManagementException;
@@ -75,6 +83,7 @@ import java.security.cert.X509Certificate;
 import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
@@ -170,6 +179,172 @@ public class SAML2BearerGrantHandler extends AbstractAuthorizationGrantHandler {
 
         return OAuthServerConfiguration.getInstance()
                 .getValueForIsRefreshTokenAllowed(OAuthConstants.OAUTH_SAML2_BEARER_METHOD);
+    }
+
+    @Override
+    public OAuth2AccessTokenRespDTO issue(OAuthTokenReqMessageContext tokenReqMsgCtx) throws IdentityOAuth2Exception {
+        OAuth2AccessTokenRespDTO responseDTO = super.issue(tokenReqMsgCtx);
+
+        String[] scope = tokenReqMsgCtx.getScope();
+        if (OAuth2Util.isOIDCAuthzRequest(scope)) {
+            Assertion assertion = (Assertion) tokenReqMsgCtx.getProperty(OAuthConstants.OAUTH_SAML2_ASSERTION);
+
+            if (assertion != null) {
+                handleClaimsInAssertion(tokenReqMsgCtx, responseDTO, assertion);
+            }
+        }
+
+        return responseDTO;
+    }
+
+    protected void handleClaimsInAssertion(OAuthTokenReqMessageContext tokenReqMsgCtx, OAuth2AccessTokenRespDTO
+            responseDTO, Assertion assertion) throws IdentityOAuth2Exception {
+
+        Map<String, String> attributes = ClaimsUtil.extractClaimsFromAssertion(
+                tokenReqMsgCtx, responseDTO, assertion, FrameworkUtils.getMultiAttributeSeparator());
+        if (attributes != null && attributes.size() > 0) {
+
+            String tenantDomain = tokenReqMsgCtx.getOauth2AccessTokenReqDTO().getTenantDomain();
+            if (StringUtils.isBlank(tenantDomain)) {
+                tenantDomain = MultitenantConstants.SUPER_TENANT_DOMAIN_NAME;
+            }
+
+            if (OAuthServerConfiguration.getInstance().isConvertOriginalClaimsFromAssertionsToOIDCDialect()) {
+
+                IdentityProvider identityProvider = getIdentityProvider(assertion, tenantDomain);
+
+                boolean localClaimDialect = identityProvider.getClaimConfig().isLocalClaimDialect();
+                ClaimMapping[] idPClaimMappings = identityProvider.getClaimConfig().getClaimMappings();
+                Map<String, String> localClaims;
+
+                if (ClaimsUtil.isResidentIdp(identityProvider)) {
+                    localClaims = handleClaimsForResidentIDP(attributes, identityProvider);
+                } else {
+                    localClaims = handleClaimsForIDP(attributes, tenantDomain, identityProvider,
+                            localClaimDialect, idPClaimMappings);
+                }
+
+                // Handle IdP Role Mappings
+                if (localClaims != null && StringUtils
+                        .isNotBlank(localClaims.get(FrameworkConstants.LOCAL_ROLE_CLAIM_URI))) {
+
+                    String updatedRoleClaimValue = getUpdatedRoleClaimValue(identityProvider,
+                            localClaims.get(FrameworkConstants.LOCAL_ROLE_CLAIM_URI));
+                    if (updatedRoleClaimValue != null) {
+                        localClaims.put(FrameworkConstants.LOCAL_ROLE_CLAIM_URI, updatedRoleClaimValue);
+                    } else {
+                        localClaims.remove(FrameworkConstants.LOCAL_ROLE_CLAIM_URI);
+                        if (localClaims.isEmpty()) {
+                            // This is added to handle situation where removing all role mappings and requesting
+                            // the id token using same SAML assertion.
+                            addUserAttributesToCache(responseDTO, tokenReqMsgCtx,
+                                    new HashMap<ClaimMapping, String>());
+                        }
+                    }
+                }
+
+                // ########################### all claims are in local dialect ############################
+
+                if (localClaims != null && localClaims.size() > 0) {
+                    Map<String, String> oidcClaims;
+                    try {
+                        oidcClaims = ClaimsUtil.convertClaimsToOIDCDialect(tokenReqMsgCtx,
+                                localClaims);
+                    } catch (IdentityApplicationManagementException | IdentityException e) {
+                        throw new IdentityOAuth2Exception(
+                                "Error while converting user claims to OIDC dialect from idp " + identityProvider
+                                        .getIdentityProviderName(), e);
+                    }
+                    Map<ClaimMapping, String> claimMappings = FrameworkUtils.buildClaimMappings(oidcClaims);
+                    addUserAttributesToCache(responseDTO, tokenReqMsgCtx, claimMappings);
+                }
+            } else {
+                // Not converting claims. Sending the claim uris in original format.
+                Map<ClaimMapping, String> claimMappings = FrameworkUtils.buildClaimMappings(attributes);
+                // Handle IdP Role Mappings
+                for (Iterator<Map.Entry<ClaimMapping, String>> iterator = claimMappings.entrySet()
+                        .iterator(); iterator.hasNext(); ) {
+
+                    Map.Entry<ClaimMapping, String> entry = iterator.next();
+                    if (FrameworkConstants.LOCAL_ROLE_CLAIM_URI
+                            .equals(entry.getKey().getLocalClaim().getClaimUri()) && StringUtils
+                            .isNotBlank(entry.getValue())) {
+
+                        IdentityProvider identityProvider = getIdentityProvider(assertion, tenantDomain);
+                        String updatedRoleClaimValue = getUpdatedRoleClaimValue(identityProvider,
+                                entry.getValue());
+                        if (updatedRoleClaimValue != null) {
+                            entry.setValue(updatedRoleClaimValue);
+                        } else {
+                            iterator.remove();
+                        }
+                        break;
+                    }
+                }
+                addUserAttributesToCache(responseDTO, tokenReqMsgCtx, claimMappings);
+            }
+        }
+    }
+
+    /**
+     * This method will update the role claim value received from the IdP using the defined role claim configuration
+     * for the IdP.
+     * Also, if "ReturnOnlyMappedLocalRoles" configuration is enabled, then server will only return the mapped role
+     * values.
+     *
+     * @param identityProvider      identity provider
+     * @param currentRoleClaimValue current role claim value.
+     * @return updated role claim string
+     */
+    private String getUpdatedRoleClaimValue(IdentityProvider identityProvider, String currentRoleClaimValue) {
+
+        PermissionsAndRoleConfig permissionAndRoleConfig = identityProvider.getPermissionAndRoleConfig();
+        if (permissionAndRoleConfig != null && ArrayUtils.isNotEmpty(permissionAndRoleConfig.getRoleMappings())) {
+
+            String[] receivedRoles = currentRoleClaimValue.split(FrameworkUtils.getMultiAttributeSeparator());
+            List<String> updatedRoleClaimValues = new ArrayList<>();
+            loop:
+            for (String receivedRole : receivedRoles) {
+                for (RoleMapping roleMapping : permissionAndRoleConfig.getRoleMappings()) {
+                    if (roleMapping.getRemoteRole().equals(receivedRole)) {
+                        updatedRoleClaimValues.add(roleMapping.getLocalRole().getLocalRoleName());
+                        continue loop;
+                    }
+                }
+                if (!OAuthServerConfiguration.getInstance().isReturnOnlyMappedLocalRoles()) {
+                    updatedRoleClaimValues.add(receivedRole);
+                }
+            }
+            if (!updatedRoleClaimValues.isEmpty()) {
+                return StringUtils.join(updatedRoleClaimValues, FrameworkUtils.getMultiAttributeSeparator());
+            }
+            return null;
+        }
+        if (!OAuthServerConfiguration.getInstance().isReturnOnlyMappedLocalRoles()) {
+            return currentRoleClaimValue;
+        }
+        return null;
+    }
+
+    protected Map<String, String> handleClaimsForIDP(Map<String, String> attributes, String tenantDomain,
+                                                     IdentityProvider identityProvider, boolean localClaimDialect,
+                                                     ClaimMapping[] idPClaimMappings) {
+
+        return ClaimsUtil
+                .handleClaimsForIDP(attributes, tenantDomain, identityProvider, localClaimDialect, idPClaimMappings);
+    }
+
+    protected Map<String, String> handleClaimsForResidentIDP(Map<String, String> attributes, IdentityProvider
+            identityProvider) {
+
+        return ClaimsUtil.handleClaimsForResidentIDP(attributes, identityProvider);
+    }
+
+
+    protected static void addUserAttributesToCache(OAuth2AccessTokenRespDTO tokenRespDTO, OAuthTokenReqMessageContext
+            msgCtx, Map<ClaimMapping, String> userAttributes) {
+
+        ClaimsUtil.addUserAttributesToCache(tokenRespDTO, msgCtx, userAttributes);
     }
 
     /**
@@ -464,7 +639,7 @@ public class SAML2BearerGrantHandler extends AbstractAuthorizationGrantHandler {
     private String getTokenEPAlias(Assertion assertion, IdentityProvider identityProvider, String tenantDomain)
             throws IdentityOAuth2Exception {
         String tokenEndpointAlias;
-        if (isResidentIdp(identityProvider)) {
+        if (ClaimsUtil.isResidentIdp(identityProvider)) {
             tokenEndpointAlias = getTokenEPAliasFromResidentIdp(assertion, identityProvider, tenantDomain);
         } else {
             // Get Alias from Federated IDP
@@ -601,17 +776,12 @@ public class SAML2BearerGrantHandler extends AbstractAuthorizationGrantHandler {
         return idpEntityId;
     }
 
-    private boolean isResidentIdp(IdentityProvider identityProvider) {
-        return IdentityApplicationConstants.RESIDENT_IDP_RESERVED_NAME.equals(
-                identityProvider.getIdentityProviderName());
-    }
-
     private IdentityProvider getIdentityProvider(Assertion assertion, String tenantDomain)
             throws IdentityOAuth2Exception {
         try {
             IdentityProvider identityProvider = getIdentityProviderFromManager(assertion, tenantDomain);
             checkNullIdentityProvider(assertion, tenantDomain, identityProvider);
-            if (isResidentIdp(identityProvider)) {
+            if (ClaimsUtil.isResidentIdp(identityProvider)) {
                 identityProvider = IdentityProviderManager.getInstance().getResidentIdP(tenantDomain);
             }
             if (log.isDebugEnabled()) {
@@ -788,7 +958,7 @@ public class SAML2BearerGrantHandler extends AbstractAuthorizationGrantHandler {
                 .equalsIgnoreCase(OAuthServerConfiguration.getInstance().getSaml2BearerTokenUserType())) {
             createLegacyUser(tokReqMsgCtx, assertion);
         } else {
-            if (isResidentIdp(identityProvider)) {
+            if (ClaimsUtil.isResidentIdp(identityProvider)) {
                 try {
                     setLocalUser(tokReqMsgCtx, assertion, spTenantDomain);
                 } catch (UserStoreException e) {
@@ -905,7 +1075,10 @@ public class SAML2BearerGrantHandler extends AbstractAuthorizationGrantHandler {
                 (subjectIdentifier)));
 
         userTenantDomain = MultitenantUtils.getTenantDomain(subjectIdentifier);
-        if (StringUtils.isEmpty(userTenantDomain)) {
+        // From above method userTenantDomain cannot be empty.
+        if (!serviceProvider.isSaasApp() && !subjectIdentifier.endsWith(MultitenantConstants
+                .SUPER_TENANT_DOMAIN_NAME) && MultitenantConstants.SUPER_TENANT_DOMAIN_NAME
+                .equalsIgnoreCase(userTenantDomain)) {
             userTenantDomain = spTenantDomain;
         }
 

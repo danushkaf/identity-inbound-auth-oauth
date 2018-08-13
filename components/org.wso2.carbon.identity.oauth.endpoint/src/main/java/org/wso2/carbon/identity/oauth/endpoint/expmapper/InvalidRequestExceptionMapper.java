@@ -28,6 +28,7 @@ import org.wso2.carbon.identity.oauth.common.OAuth2ErrorCodes;
 import org.wso2.carbon.identity.oauth.common.OAuthConstants;
 import org.wso2.carbon.identity.oauth.endpoint.exception.AccessDeniedException;
 import org.wso2.carbon.identity.oauth.endpoint.exception.BadRequestException;
+import org.wso2.carbon.identity.oauth.endpoint.exception.ConsentHandlingFailedException;
 import org.wso2.carbon.identity.oauth.endpoint.exception.InvalidApplicationClientException;
 import org.wso2.carbon.identity.oauth.endpoint.exception.InvalidRequestException;
 import org.wso2.carbon.identity.oauth.endpoint.exception.InvalidRequestParentException;
@@ -37,10 +38,11 @@ import org.wso2.carbon.identity.oauth.endpoint.exception.TokenEndpointAccessDeni
 import org.wso2.carbon.identity.oauth.endpoint.exception.TokenEndpointBadRequestException;
 import org.wso2.carbon.identity.oauth.endpoint.util.EndpointUtil;
 
-
 import java.net.URI;
 import java.net.URISyntaxException;
+import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
+import javax.ws.rs.core.Context;
 import javax.ws.rs.core.HttpHeaders;
 import javax.ws.rs.core.Response;
 import javax.ws.rs.ext.ExceptionMapper;
@@ -52,6 +54,9 @@ public class InvalidRequestExceptionMapper implements ExceptionMapper<InvalidReq
     private static final String TEXT_HTML = "text/html";
     private static final String APPLICATION_JAVASCRIPT = "application/javascript";
     private final Log log = LogFactory.getLog(InvalidRequestExceptionMapper.class);
+
+    @Context
+    private HttpServletRequest request;
 
     @Override
     public Response toResponse(InvalidRequestParentException exception) {
@@ -121,7 +126,19 @@ public class InvalidRequestExceptionMapper implements ExceptionMapper<InvalidReq
                 }
                 return handleInternalServerError();
             }
+        } else if (exception instanceof ConsentHandlingFailedException) {
+            try {
+                return buildErrorResponseConsentHandlingFailure(exception);
+            } catch (URISyntaxException e) {
+                if (log.isDebugEnabled()) {
+                    log.debug("Error while getting endpoint error page URL", e);
+                }
+                return handleInternalServerError();
+            }
         } else {
+            if (log.isDebugEnabled()) {
+                log.debug("OAuth System error while processing request: ", exception);
+            }
             return handleInternalServerError();
         }
     }
@@ -136,8 +153,19 @@ public class InvalidRequestExceptionMapper implements ExceptionMapper<InvalidReq
         if (log.isDebugEnabled()) {
             log.debug("Response status :" + status);
         }
-        return Response.status(status).location(new URI(EndpointUtil.getErrorPageURL(errorCode,
+        return Response.status(status).location(new URI(EndpointUtil.getErrorPageURL(request, errorCode,
                 exception.getMessage(), null))).build();
+    }
+
+    private Response buildErrorResponseConsentHandlingFailure(InvalidRequestParentException exception)
+            throws URISyntaxException {
+
+        if (log.isDebugEnabled()) {
+            log.debug("System Error while handling consent: ", exception);
+        }
+        return Response.status(HttpServletResponse.SC_FOUND).location(new URI(
+                EndpointUtil.getErrorPageURL(request, OAuth2ErrorCodes.SERVER_ERROR, "Error while handling consent.",
+                        null))).build();
     }
 
     private Response buildErrorResponse(int status, InvalidRequestParentException exception, String errorCode)

@@ -25,7 +25,11 @@ public class UpdateRequestDTO  {
   
   private List<String> grantTypes = new ArrayList<String>();
 
-  
+
+  private String tokenType = null;
+  private String clientId = null;
+  private String clientSecret = null;
+
   /**
    **/
   @ApiModelProperty(value = "")
@@ -37,7 +41,7 @@ public class UpdateRequestDTO  {
     this.redirectUris = redirectUris;
   }
 
-  
+
   /**
    **/
   @ApiModelProperty(value = "")
@@ -61,7 +65,37 @@ public class UpdateRequestDTO  {
     this.grantTypes = grantTypes;
   }
 
-  
+
+  @ApiModelProperty(value = "")
+
+  @JsonProperty("token_type_extension")
+  public String getTokenType() {
+    return tokenType;
+  }
+
+  public void setTokenType(String tokenType) {
+    this.tokenType = tokenType;
+  }
+
+  @JsonProperty("client_id")
+  public String getClientId() {
+    return clientId;
+  }
+
+  public void setClientId(String clientId) {
+    this.clientId = clientId;
+  }
+
+
+  @ApiModelProperty(value = "")
+  @JsonProperty("client_secret")
+  public String getClientSecret() {
+    return clientSecret;
+  }
+
+  public void setClientSecret(String clientSecret) {
+    this.clientSecret = clientSecret;
+  }
 
   @Override
   public String toString()  {
@@ -71,6 +105,9 @@ public class UpdateRequestDTO  {
     sb.append("  redirect_uris: ").append(redirectUris).append("\n");
     sb.append("  client_name: ").append(clientName).append("\n");
     sb.append("  grant_types: ").append(grantTypes).append("\n");
+    sb.append("  token_type_extension: ").append(tokenType).append("\n");
+    sb.append("  client_id: ").append(clientId).append("\n");
+    sb.append("  client_secret: ").append(clientSecret).append("\n");
     sb.append("}\n");
     return sb.toString();
   }

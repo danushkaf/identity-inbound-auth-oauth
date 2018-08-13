@@ -23,6 +23,7 @@ import org.wso2.carbon.context.PrivilegedCarbonContext;
 import org.wso2.carbon.identity.oauth.dcr.DCRMConstants;
 import org.wso2.carbon.identity.oauth.dcr.bean.ApplicationRegistrationRequest;
 import org.wso2.carbon.identity.oauth.dcr.bean.ApplicationUpdateRequest;
+import org.wso2.carbon.identity.oauth.dcr.exception.DCRMClientException;
 import org.wso2.carbon.identity.oauth.dcr.exception.DCRMException;
 import org.wso2.carbon.identity.oauth.dcr.service.DCRMService;
 import org.wso2.carbon.identity.oauth2.dcr.endpoint.Exceptions.DCRMEndpointException;
@@ -40,6 +41,7 @@ public class DCRMUtils {
     private static final String CONFLICT_STATUS = "CONFLICT_";
     private static final String BAD_REQUEST_STATUS = "BAD_REQUEST_";
     private static final String NOT_FOUND_STATUS = "NOT_FOUND_";
+    private static final String FORBIDDEN_STATUS = "FORBIDDEN_";
 
     public static DCRMService getOAuth2DCRMService() {
         return (DCRMService) PrivilegedCarbonContext.getThreadLocalCarbonContext()
@@ -52,6 +54,9 @@ public class DCRMUtils {
         appRegistrationRequest.setClientName(registrationRequestDTO.getClientName());
         appRegistrationRequest.setRedirectUris(registrationRequestDTO.getRedirectUris());
         appRegistrationRequest.setGrantTypes(registrationRequestDTO.getGrantTypes());
+        appRegistrationRequest.setTokenType(registrationRequestDTO.getTokenType());
+        appRegistrationRequest.setConsumerKey(registrationRequestDTO.getClientId());
+        appRegistrationRequest.setConsumerSecret(registrationRequestDTO.getClientSecret());
         return appRegistrationRequest;
 
     }
@@ -62,6 +67,7 @@ public class DCRMUtils {
         applicationUpdateRequest.setClientName(updateRequestDTO.getClientName());
         applicationUpdateRequest.setRedirectUris(updateRequestDTO.getRedirectUris());
         applicationUpdateRequest.setGrantTypes(updateRequestDTO.getGrantTypes());
+        applicationUpdateRequest.setTokenType(updateRequestDTO.getTokenType());
         return applicationUpdateRequest;
 
     }
@@ -74,11 +80,13 @@ public class DCRMUtils {
             if (errorCode.startsWith(CONFLICT_STATUS)) {
                 status = Response.Status.BAD_REQUEST;
                 isStatusOnly = false;
-            } else if (errorCode.equals(DCRMConstants.ErrorMessages.BAD_REQUEST_INVALID_REDIRECT_URI.toString())) {
+            } else if (errorCode.startsWith(BAD_REQUEST_STATUS)) {
                 status = Response.Status.BAD_REQUEST;
                 isStatusOnly = false;
             } else if (errorCode.startsWith(NOT_FOUND_STATUS)) {
                 status = Response.Status.UNAUTHORIZED;
+            } else if (errorCode.startsWith(FORBIDDEN_STATUS)) {
+                status = Response.Status.FORBIDDEN;
             }
         }
         throw buildDCRMEndpointException(status, errorCode, dcrmException.getMessage(), isStatusOnly);

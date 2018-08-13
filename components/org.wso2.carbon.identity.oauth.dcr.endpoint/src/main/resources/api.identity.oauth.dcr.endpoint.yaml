@@ -1,6 +1,6 @@
 swagger: '2.0'
 info:
-  version: 1.0.0
+  version: 1.1.0
   title: WSO2 Identity Server OAuth2 Dynamic Client Registration Endpoint
   description: >
     This document specifies an **OAuth2 Dyanmic Client Registration Endpoint**
@@ -18,7 +18,7 @@ info:
 schemes:
   - https
 host: localhost
-basePath: /api/identity/oauth2/dcr/v1.0
+basePath: /api/identity/oauth2/dcr/v1.1
 consumes:
   - application/json
 produces:
@@ -27,13 +27,14 @@ paths:
   /register:
     post:
       description: |
-        This API is used to create an OAuth2 application.
+        This API is used to create an OAuth2 application. If your want to create your application to use the implicit or authorization_code 
+        grant types, you need to provide the redirect_uris field in your request. If you are using any other grant type, 
+        such as password, you don't need to send the redirect_uri field in the request. Check the example that is given below.
       x-wso2-request: |
         curl -X POST -H "Authorization: Basic YWRtaW46YWRtaW4=" -H
         "Content-Type: application/json" -d '{
-          "redirect_uris":["https://client.example.org/callback"],
+          "redirect_uris":[""],
           "client_name": "application_1",
-          "ext_param_owner": "application_owner",
           "grant_types": ["password"] }'
         "https://localhost:9443/api/identity/oauth2/dcr/v1.0/register"
       x-wso2-response: |
@@ -41,8 +42,8 @@ paths:
         { "client_id": "s6BhdRkqt3",
         "client_secret":"ZJYCqe3GGRvdrudKyZS0XhGv_Z45DuKhCUk0gBR1vZk",
         "client_secret_expires_at": 1577858400,
-        "redirect_uris":["https://client.example.org/callback"],
-        "client_name":"application_owner_application_1" }
+        "redirect_uris":[""],
+        "client_name":"application_1" }
       summary: |
         Registers an OAuth2 application
       operationId: registerApplication
@@ -64,6 +65,43 @@ paths:
             $ref: '#/definitions/error'
         '409':
           description: Conflict
+          schema:
+            $ref: '#/definitions/error'
+        '500':
+          description: Server Error
+          schema:
+            $ref: '#/definitions/error'
+      tags:
+        - OAuth2 DCR
+  # Get application info by client name
+    get:
+      summary: |
+        Get OAuth2 application information
+      description: |
+         This API is used to get/retrieve an OAuth2 application by client_name.
+      x-wso2-request: |
+        curl -X GET -H "Authorization: Basic YWRtaW46YWRtaW4=" -H "Content-Type: application/json" -d '{}' "https://localhost:9443/api/identity/oauth2/dcr/v1.0/register?client_name=application_owner_application_1"
+      x-wso2-response: |
+        "HTTP/1.1 200 OK"
+        { "client_id": "s6BhdRkqt3",
+        "client_secret":"ZJYCqe3GGRvdrudKyZS0XhGv_Z45DuKhCUk0gBR1vZk",
+        "client_secret_expires_at": 1577858400,
+        "redirect_uris":["https://client.example.org/callback"],
+        "client_name":"application_owner_application_1" }
+      operationId: getApplicationByName
+      parameters:
+        - name: client_name
+          type: string
+          in: path
+          description: Unique identifier of the OAuth2 client application.
+          required: true
+      responses:
+        '200':
+          description: Successfully Retrieved
+          schema:
+            $ref: '#/definitions/application'
+        '401':
+          description: Unauthorized
           schema:
             $ref: '#/definitions/error'
         '500':
@@ -210,6 +248,10 @@ definitions:
           type: string
       client_name:
         type: string
+      client_id:
+        type: string
+      client_secret:
+        type: string
       grant_types:
         type: array
         items:
@@ -219,6 +261,10 @@ definitions:
       jwks_uri:
         type: string
       url:
+        type: string
+      ext_param_client_id:
+        type: string
+      ext_param_client_secret:
         type: string
       contacts:
         type: array
@@ -247,6 +293,10 @@ definitions:
         items:
           type: string
       client_name:
+        type: string
+      client_id:
+        type: string
+      client_secret:
         type: string
       grant_types:
         type: array

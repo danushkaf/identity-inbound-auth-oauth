@@ -19,8 +19,12 @@
 package org.wso2.carbon.identity.oauth.cache;
 
 import org.wso2.carbon.identity.application.common.model.ClaimMapping;
+import org.wso2.carbon.identity.openidconnect.model.RequestObject;
 
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -44,9 +48,41 @@ public class AuthorizationGrantCacheEntry extends CacheEntry {
 
     private LinkedHashSet acrValue;
 
+    private String selectedAcrValue;
+
+    private List<String> amrList = new ArrayList<>();
+
     private String essentialClaims;
 
     private long authTime;
+
+    private long maxAge;
+
+    private RequestObject requestObject;
+
+    private boolean hasNonOIDCClaims;
+
+    /*
+        OIDC sub claim. This should be formatted based on the Service Provider configurations to append
+        userStoreDomain and tenantDomain.
+     */
+    private String subjectClaim;
+
+    public String getSubjectClaim() {
+        return subjectClaim;
+    }
+
+    public void setSubjectClaim(String subjectClaim) {
+        this.subjectClaim = subjectClaim;
+    }
+
+    public RequestObject getRequestObject() {
+        return requestObject;
+    }
+
+    public void setRequestObject(RequestObject requestObject) {
+        this.requestObject = requestObject;
+    }
 
     public String getEssentialClaims() {
         return essentialClaims;
@@ -64,12 +100,28 @@ public class AuthorizationGrantCacheEntry extends CacheEntry {
         this.acrValue = acrValue;
     }
 
+    public String getSelectedAcrValue() {
+        return selectedAcrValue;
+    }
+
+    public void setSelectedAcrValue(String selectedAcrValue) {
+        this.selectedAcrValue = selectedAcrValue;
+    }
+
     public long getAuthTime() {
         return authTime;
     }
 
     public void setAuthTime(long authTime) {
         this.authTime = authTime;
+    }
+
+    public long getMaxAge() {
+        return maxAge;
+    }
+
+    public void setMaxAge(long maxAge) {
+        this.maxAge = maxAge;
     }
 
     public AuthorizationGrantCacheEntry(Map<ClaimMapping, String> userAttributes) {
@@ -122,5 +174,39 @@ public class AuthorizationGrantCacheEntry extends CacheEntry {
 
     public void setPkceCodeChallengeMethod(String pkceCodeChallengeMethod) {
         this.pkceCodeChallengeMethod = pkceCodeChallengeMethod;
+    }
+
+    /**
+     * To check whether particular cache entry has non OIDC claims in it.
+     *
+     * @return true if the cache entry has non OIDC claims
+     */
+    public boolean isHasNonOIDCClaims() {
+        return hasNonOIDCClaims;
+    }
+
+    /**
+     * To set hasNonOIDCClaims.
+     */
+    public void setHasNonOIDCClaims(boolean hasNonOIDCClaims) {
+        this.hasNonOIDCClaims = hasNonOIDCClaims;
+    }
+
+    /**
+     * Adds authentication method reference to AMR.
+     *
+     * @param reference any string representation of an authentication method.
+     */
+    public void addAmr(String reference) {
+        amrList.add(reference);
+    }
+
+    /**
+     * Returns a list of Authentication Method references.
+     *
+     * @return an unmodifiable list of internal AMR list.
+     */
+    public List<String> getAmrList() {
+        return Collections.unmodifiableList(amrList);
     }
 }

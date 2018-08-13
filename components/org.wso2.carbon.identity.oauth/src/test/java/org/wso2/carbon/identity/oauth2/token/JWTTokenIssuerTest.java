@@ -43,6 +43,9 @@ import org.wso2.carbon.identity.openidconnect.CustomClaimsCallbackHandler;
 import org.wso2.carbon.identity.testutil.powermock.PowerMockIdentityBaseTest;
 
 import java.util.Arrays;
+import java.util.Calendar;
+import java.util.Collections;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -88,6 +91,7 @@ public class JWTTokenIssuerTest extends PowerMockIdentityBaseTest {
     private static final String APPLICATION_ACCESS_TOKEN_GRANT_TYPE = "applicationAccessTokenGrantType";
     private static final String DUMMY_CLIENT_ID = "dummyClientID";
     private static final String ID_TOKEN_ISSUER = "idTokenIssuer";
+    private static final String EXPIRY_TIME_JWT = "EXPIRY_TIME_JWT";
 
     @Mock
     private OAuthServerConfiguration oAuthServerConfiguration;
@@ -108,9 +112,9 @@ public class JWTTokenIssuerTest extends PowerMockIdentityBaseTest {
     public Object[][] provideRequestScopes() {
         final String[] SCOPES_WITH_AUD = new String[]{"aud", "scope1", "scope1"};
         return new Object[][]{
-                {null, null},
-                {new String[0], null},
-                {new String[]{"scope1", "scope1"}, null},
+                {null, Collections.emptyList()},
+                {new String[0], Collections.emptyList()},
+                {new String[]{"scope1", "scope1"}, Collections.emptyList()},
                 {SCOPES_WITH_AUD, Arrays.asList(SCOPES_WITH_AUD)}
         };
     }
@@ -161,7 +165,7 @@ public class JWTTokenIssuerTest extends PowerMockIdentityBaseTest {
         doAnswer(new Answer<Object>() {
             @Override
             public Object answer(InvocationOnMock invocationOnMock) throws Throwable {
-                return new JWTClaimsSet();
+                return new JWTClaimsSet.Builder().build();
             }
         }).when(jwtTokenIssuer).createJWTClaimSet(
                 any(OAuthAuthzReqMessageContext.class),
@@ -200,6 +204,10 @@ public class JWTTokenIssuerTest extends PowerMockIdentityBaseTest {
         tokenReqDTO.setGrantType(APPLICATION_ACCESS_TOKEN_GRANT_TYPE);
         OAuthTokenReqMessageContext tokenReqMessageContext = new OAuthTokenReqMessageContext(tokenReqDTO);
         tokenReqMessageContext.setAuthorizedUser(authenticatedUser);
+        Calendar cal = Calendar.getInstance(); // creates calendar
+        cal.setTime(new Date()); // sets calendar time/date
+        cal.add(Calendar.HOUR_OF_DAY, 1); // adds one hour
+        tokenReqMessageContext.addProperty(EXPIRY_TIME_JWT, cal.getTime());
 
         return new Object[][]{
                 {
@@ -246,7 +254,7 @@ public class JWTTokenIssuerTest extends PowerMockIdentityBaseTest {
         assertNotNull(jwtClaimSet);
         assertEquals(jwtClaimSet.getIssuer(), ID_TOKEN_ISSUER);
         assertEquals(jwtClaimSet.getSubject(), sub);
-        assertEquals(jwtClaimSet.getCustomClaim("azp"), DUMMY_CLIENT_ID);
+        assertEquals(jwtClaimSet.getClaim("azp"), DUMMY_CLIENT_ID);
 
         // Assert whether client id is among audiences
         assertNotNull(jwtClaimSet.getAudience());
@@ -255,13 +263,18 @@ public class JWTTokenIssuerTest extends PowerMockIdentityBaseTest {
         // Validate expiry
         assertNotNull(jwtClaimSet.getIssueTime());
         assertNotNull(jwtClaimSet.getExpirationTime());
-        assertEquals(
-                new Duration(
-                        jwtClaimSet.getIssueTime().getTime(),
-                        jwtClaimSet.getExpirationTime().getTime()
-                ).getMillis(),
-                expectedExpiry
-        );
+
+        if (tokenReqMessageContext != null
+                && ((OAuthTokenReqMessageContext) tokenReqMessageContext).getProperty(EXPIRY_TIME_JWT)
+                != null) {
+            assertTrue(jwtClaimSet.getExpirationTime().compareTo(
+                    (Date) ((OAuthTokenReqMessageContext) tokenReqMessageContext)
+                            .getProperty(EXPIRY_TIME_JWT)) <= 0);
+        } else {
+            assertEquals(new Duration(jwtClaimSet.getIssueTime().getTime(), jwtClaimSet.getExpirationTime().getTime())
+                    .getMillis(), expectedExpiry);
+        }
+
     }
 
     @Test
@@ -452,15 +465,15 @@ public class JWTTokenIssuerTest extends PowerMockIdentityBaseTest {
         mockCustomClaimsCallbackHandler();
         when(oAuthServerConfiguration.getSignatureAlgorithm()).thenReturn(SHA256_WITH_RSA);
 
-        JWTClaimsSet jwtClaimsSet = new JWTClaimsSet();
+        JWTClaimsSet.Builder jwtClaimsSetBuilder = new JWTClaimsSet.Builder();
         OAuth2AuthorizeReqDTO reqDTO = new OAuth2AuthorizeReqDTO();
         OAuthAuthzReqMessageContext authzReqMessageContext = new OAuthAuthzReqMessageContext(reqDTO);
 
         JWTTokenIssuer jwtTokenIssuer = new JWTTokenIssuer();
-        jwtTokenIssuer.handleCustomClaims(jwtClaimsSet, authzReqMessageContext);
+        JWTClaimsSet jwtClaimsSet = jwtTokenIssuer.handleCustomClaims(jwtClaimsSetBuilder, authzReqMessageContext);
 
         assertNotNull(jwtClaimsSet);
-        assertEquals(jwtClaimsSet.getCustomClaims().size(), 1);
+        assertEquals(jwtClaimsSet.getClaims().size(), 1);
         assertNotNull(jwtClaimsSet.getClaim("AUTHZ_CONTEXT_CLAIM"));
     }
 
@@ -470,41 +483,41 @@ public class JWTTokenIssuerTest extends PowerMockIdentityBaseTest {
         when(oAuthServerConfiguration.getSignatureAlgorithm()).thenReturn(SHA256_WITH_RSA);
         JWTTokenIssuer jwtTokenIssuer = new JWTTokenIssuer();
 
-        JWTClaimsSet jwtClaimsSet = new JWTClaimsSet();
+        JWTClaimsSet.Builder jwtClaimsSetBuilder = new JWTClaimsSet.Builder();
         OAuth2AccessTokenReqDTO tokenReqDTO = new OAuth2AccessTokenReqDTO();
         OAuthTokenReqMessageContext tokenReqMessageContext = new OAuthTokenReqMessageContext(tokenReqDTO);
 
-        jwtTokenIssuer.handleCustomClaims(jwtClaimsSet, tokenReqMessageContext);
+        JWTClaimsSet jwtClaimsSet = jwtTokenIssuer.handleCustomClaims(jwtClaimsSetBuilder, tokenReqMessageContext);
 
         assertNotNull(jwtClaimsSet);
-        assertEquals(jwtClaimsSet.getCustomClaims().size(), 1);
+        assertEquals(jwtClaimsSet.getClaims().size(), 1);
         assertNotNull(jwtClaimsSet.getClaim("TOKEN_CONTEXT_CLAIM"));
     }
 
     private void mockCustomClaimsCallbackHandler() {
         CustomClaimsCallbackHandler claimsCallBackHandler = mock(CustomClaimsCallbackHandler.class);
 
-        doAnswer(new Answer<Void>() {
+        doAnswer(new Answer<JWTClaimsSet>() {
             @Override
-            public Void answer(InvocationOnMock invocationOnMock) throws Throwable {
-                JWTClaimsSet claimsSet = invocationOnMock.getArgumentAt(0, JWTClaimsSet.class);
-                claimsSet.setClaim("TOKEN_CONTEXT_CLAIM", true);
-                return null;
+            public JWTClaimsSet answer(InvocationOnMock invocationOnMock) throws Throwable {
+                JWTClaimsSet.Builder claimsSetBuilder = invocationOnMock.getArgumentAt(0, JWTClaimsSet.Builder.class);
+                claimsSetBuilder.claim("TOKEN_CONTEXT_CLAIM", true);
+                return claimsSetBuilder.build();
             }
         }).when(
-                claimsCallBackHandler).handleCustomClaims(any(JWTClaimsSet.class),
+                claimsCallBackHandler).handleCustomClaims(any(JWTClaimsSet.Builder.class),
                 any(OAuthTokenReqMessageContext.class)
         );
 
-        doAnswer(new Answer<Void>() {
+        doAnswer(new Answer<JWTClaimsSet>() {
             @Override
-            public Void answer(InvocationOnMock invocationOnMock) throws Throwable {
-                JWTClaimsSet claimsSet = invocationOnMock.getArgumentAt(0, JWTClaimsSet.class);
-                claimsSet.setClaim("AUTHZ_CONTEXT_CLAIM", true);
-                return null;
+            public JWTClaimsSet answer(InvocationOnMock invocationOnMock) throws Throwable {
+                JWTClaimsSet.Builder claimsSetBuilder = invocationOnMock.getArgumentAt(0, JWTClaimsSet.Builder.class);
+                claimsSetBuilder.claim("AUTHZ_CONTEXT_CLAIM", true);
+                return claimsSetBuilder.build();
             }
         }).when(
-                claimsCallBackHandler).handleCustomClaims(any(JWTClaimsSet.class),
+                claimsCallBackHandler).handleCustomClaims(any(JWTClaimsSet.Builder.class),
                 any(OAuthAuthzReqMessageContext.class)
         );
 

@@ -18,8 +18,10 @@
 
 package org.wso2.carbon.identity.oauth.endpoint.token;
 
+import org.apache.commons.collections.MapUtils;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
+import org.apache.cxf.interceptor.InInterceptors;
 import org.apache.oltu.oauth2.as.response.OAuthASResponse;
 import org.apache.oltu.oauth2.as.response.OAuthASResponse.OAuthTokenResponseBuilder;
 import org.apache.oltu.oauth2.common.OAuth;
@@ -29,17 +31,18 @@ import org.apache.oltu.oauth2.common.exception.OAuthSystemException;
 import org.apache.oltu.oauth2.common.message.OAuthResponse;
 import org.apache.oltu.oauth2.common.message.types.GrantType;
 import org.wso2.carbon.context.PrivilegedCarbonContext;
+import org.wso2.carbon.identity.oauth.client.authn.filter.OAuthClientAuthenticatorProxy;
 import org.wso2.carbon.identity.oauth.common.OAuth2ErrorCodes;
 import org.wso2.carbon.identity.oauth.common.OAuthConstants;
 import org.wso2.carbon.identity.oauth.common.exception.OAuthClientException;
 import org.wso2.carbon.identity.oauth.endpoint.OAuthRequestWrapper;
 import org.wso2.carbon.identity.oauth.endpoint.exception.InvalidApplicationClientException;
-import org.wso2.carbon.identity.oauth.endpoint.exception.InvalidRequestException;
 import org.wso2.carbon.identity.oauth.endpoint.exception.InvalidRequestParentException;
 import org.wso2.carbon.identity.oauth.endpoint.exception.TokenEndpointAccessDeniedException;
 import org.wso2.carbon.identity.oauth.endpoint.exception.TokenEndpointBadRequestException;
 import org.wso2.carbon.identity.oauth.endpoint.util.EndpointUtil;
 import org.wso2.carbon.identity.oauth2.ResponseHeader;
+import org.wso2.carbon.identity.oauth2.bean.OAuthClientAuthnContext;
 import org.wso2.carbon.identity.oauth2.dto.OAuth2AccessTokenReqDTO;
 import org.wso2.carbon.identity.oauth2.dto.OAuth2AccessTokenRespDTO;
 import org.wso2.carbon.identity.oauth2.model.CarbonOAuthTokenRequest;
@@ -62,6 +65,7 @@ import static org.wso2.carbon.identity.oauth.endpoint.util.EndpointUtil.validate
 import static org.wso2.carbon.identity.oauth.endpoint.util.EndpointUtil.validateParams;
 
 @Path("/token")
+@InInterceptors(classes = OAuthClientAuthenticatorProxy.class)
 public class OAuth2TokenEndpoint {
 
     private static final Log log = LogFactory.getLog(OAuth2TokenEndpoint.class);
@@ -74,21 +78,15 @@ public class OAuth2TokenEndpoint {
     @Produces("application/json")
     public Response issueAccessToken(@Context HttpServletRequest request,
                                      MultivaluedMap<String, String> paramMap)
-            throws OAuthSystemException, InvalidRequestParentException{
+            throws OAuthSystemException, InvalidRequestParentException {
 
         try {
             startSuperTenantFlow();
             validateRepeatedParams(request, paramMap);
-
-            if (isAuthorizationHeaderExists(request)) {
-                validateAuthorizationHeader(request, paramMap);
-            }
-
             HttpServletRequestWrapper httpRequest = new OAuthRequestWrapper(request, paramMap);
-            String consumerKey = getConsumerKey(httpRequest);
-            validateOAuthApplication(consumerKey);
 
             CarbonOAuthTokenRequest oauthRequest = buildCarbonOAuthTokenRequest(httpRequest);
+            validateOAuthApplication(oauthRequest.getoAuthClientAuthnContext());
             OAuth2AccessTokenRespDTO oauth2AccessTokenResp = issueAccessToken(oauthRequest);
 
             if (oauth2AccessTokenResp.getErrorMsg() != null) {
@@ -139,16 +137,11 @@ public class OAuth2TokenEndpoint {
         }
     }
 
-    private void validateOAuthApplication(String consumerKey) throws InvalidApplicationClientException,
-            TokenEndpointBadRequestException {
+    private void validateOAuthApplication(OAuthClientAuthnContext oAuthClientAuthnContext) throws InvalidApplicationClientException, TokenEndpointBadRequestException {
 
-        if (isNotBlank(consumerKey)) {
-            validateOauthApplication(consumerKey);
-        } else {
-            if (log.isDebugEnabled()) {
-                log.debug("Missing parameters on the request: client_id");
-            }
-            throw new TokenEndpointBadRequestException("Missing parameters on the request: client_id");
+        if (isNotBlank(oAuthClientAuthnContext.getClientId()) && !oAuthClientAuthnContext
+                .isMultipleAuthenticatorsEngaged()) {
+            validateOauthApplication(oAuthClientAuthnContext.getClientId());
         }
     }
 
@@ -164,6 +157,12 @@ public class OAuth2TokenEndpoint {
 
         if (oauth2AccessTokenResp.getIDToken() != null) {
             oAuthRespBuilder.setParam(OAuthConstants.ID_TOKEN, oauth2AccessTokenResp.getIDToken());
+        }
+
+        // Set custom parameters in token response if supported
+        if (MapUtils.isNotEmpty(oauth2AccessTokenResp.getParameters())) {
+            oauth2AccessTokenResp.getParameters().forEach((paramKey, paramValue) -> oAuthRespBuilder.setParam
+                    (paramKey, paramValue));
         }
 
         OAuthResponse response = oAuthRespBuilder.buildJSONMessage();
@@ -190,7 +189,7 @@ public class OAuth2TokenEndpoint {
 
         // if there is an auth failure, HTTP 401 Status Code should be sent back to the client.
         if (OAuth2ErrorCodes.INVALID_CLIENT.equals(oauth2AccessTokenResp.getErrorCode())) {
-            return handleBasicAuthFailure();
+            return handleBasicAuthFailure(oauth2AccessTokenResp.getErrorCode(), oauth2AccessTokenResp.getErrorMsg());
         } else if (SQL_ERROR.equals(oauth2AccessTokenResp.getErrorCode())) {
             return handleSQLError();
         } else if (OAuth2ErrorCodes.SERVER_ERROR.equals(oauth2AccessTokenResp.getErrorCode())) {
@@ -251,8 +250,6 @@ public class OAuth2TokenEndpoint {
             if (log.isDebugEnabled()) {
                 log.error("Error while extracting credentials from authorization header", e);
             }
-
-            throw new TokenEndpointAccessDeniedException("Client Authentication failed. Invalid Authorization Header");
         }
     }
 
@@ -269,7 +266,7 @@ public class OAuth2TokenEndpoint {
         return request.getHeader(OAuthConstants.HTTP_REQ_HEADER_AUTHZ) != null;
     }
 
-    private Response handleBasicAuthFailure() throws OAuthSystemException {
+    private Response handleBasicAuthFailure(String errorCode, String errorMessage) throws OAuthSystemException {
         OAuthResponse response = OAuthASResponse.errorResponse(HttpServletResponse.SC_UNAUTHORIZED)
                 .setError(OAuth2ErrorCodes.INVALID_CLIENT)
                 .setErrorDescription("Client Authentication failed.").buildJSONMessage();
@@ -306,9 +303,11 @@ public class OAuth2TokenEndpoint {
     private OAuth2AccessTokenReqDTO buildAccessTokenReqDTO(CarbonOAuthTokenRequest oauthRequest) {
 
         OAuth2AccessTokenReqDTO tokenReqDTO = new OAuth2AccessTokenReqDTO();
+        OAuthClientAuthnContext oauthClientAuthnContext = oauthRequest.getoAuthClientAuthnContext();
+        tokenReqDTO.setoAuthClientAuthnContext(oauthClientAuthnContext);
         String grantType = oauthRequest.getGrantType();
         tokenReqDTO.setGrantType(grantType);
-        tokenReqDTO.setClientId(oauthRequest.getClientId());
+        tokenReqDTO.setClientId(oauthClientAuthnContext.getClientId());
         tokenReqDTO.setClientSecret(oauthRequest.getClientSecret());
         tokenReqDTO.setCallbackURI(oauthRequest.getRedirectURI());
         tokenReqDTO.setScope(oauthRequest.getScopes().toArray(new String[oauthRequest.getScopes().size()]));
@@ -333,6 +332,7 @@ public class OAuth2TokenEndpoint {
         } else if (org.wso2.carbon.identity.oauth.common.GrantType.IWA_NTLM.toString().equals(grantType)) {
             tokenReqDTO.setWindowsToken(oauthRequest.getWindowsToken());
         }
+        tokenReqDTO.addAuthenticationMethodReference(grantType);
         return tokenReqDTO;
     }
 }

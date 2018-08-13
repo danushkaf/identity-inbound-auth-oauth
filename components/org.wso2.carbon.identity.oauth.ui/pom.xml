@@ -22,7 +22,7 @@
         <groupId>org.wso2.carbon.identity.inbound.auth.oauth2</groupId>
         <artifactId>identity-inbound-auth-oauth</artifactId>
         <relativePath>../../pom.xml</relativePath>
-        <version>5.5.121-SNAPSHOT</version>
+        <version>6.0.35-SNAPSHOT</version>
     </parent>
 
     <modelVersion>4.0.0</modelVersion>
@@ -36,6 +36,10 @@
         <dependency>
             <groupId>org.apache.axis2.wso2</groupId>
             <artifactId>axis2</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.wso2.carbon.identity.inbound.auth.oauth2</groupId>
+            <artifactId>org.wso2.carbon.claim.metadata.mgt.stub.dep</artifactId>
         </dependency>
         <dependency>
             <groupId>org.wso2.carbon</groupId>
@@ -58,7 +62,7 @@
             <artifactId>org.wso2.carbon.identity.oauth.common</artifactId>
         </dependency>
         <dependency>
-            <groupId>org.apache.cxf.wso2</groupId>
+            <groupId>org.wso2.orbit.org.apache.cxf</groupId>
             <artifactId>cxf-bundle</artifactId>
         </dependency>
         <dependency>
@@ -123,7 +127,9 @@
                             org.wso2.carbon.ui; version="${carbon.kernel.imp.pkg.version.range}",
                             org.wso2.carbon.ui.util; version="${carbon.kernel.imp.pkg.version.range}",
                             org.wso2.carbon.utils; version="${carbon.kernel.imp.pkg.version.range}",
-                            org.wso2.carbon.identity.core.util.*;version="${carbon.identity.framework.imp.pkg.version.range}"
+                            org.wso2.carbon.identity.claim.metadata.mgt.*; version="${claim.metadata.version.range}",
+                            org.wso2.carbon.identity.core.util.*;version="${carbon.identity.framework.imp.pkg.version.range}",
+
                         </Import-Package>
                         <Export-Package>
                             !org.wso2.carbon.identity.oauth.ui.internal,

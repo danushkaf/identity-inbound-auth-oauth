@@ -29,6 +29,7 @@ import org.wso2.carbon.identity.oauth.IdentityOAuthAdminException;
 import org.wso2.carbon.identity.oauth.Parameters;
 import org.wso2.carbon.identity.oauth.config.OAuthServerConfiguration;
 import org.wso2.carbon.identity.oauth.tokenprocessor.PlainTextPersistenceProcessor;
+import org.wso2.carbon.identity.oauth2.IdentityOAuth2Exception;
 
 import java.sql.Connection;
 import java.sql.PreparedStatement;
@@ -50,6 +51,7 @@ public class OAuthConsumerDAOTest extends TestOAuthDAOBase {
 
     private static final String CLIENT_ID = "ca19a540f544777860e44e75f605d927";
     private static final String SECRET = "87n9a540f544777860e44e75f605d435";
+    private static final String NOT_EXISTING_SECRET = "sasaddewgefnhf44777860e44e75f605d435";
     private static final String APP_NAME = "myApp";
     private static final String USER_NAME = "user1";
     private static final String APP_STATE = "ACTIVE";
@@ -63,6 +65,7 @@ public class OAuthConsumerDAOTest extends TestOAuthDAOBase {
     private static final String OAUTH_VERIFIER = "fakeOauthVerifier";
     private static final String NEW_SECRET = "a459a540f544777860e44e75f605d875";
     private static final String DB_NAME = "testOAuthConsumerDAO";
+    private static final String BACKCHANNELLOGOUT_URL = "http://localhost:8080/backChannelLogout";
 
     @Mock
     private OAuthServerConfiguration mockedServerConfig;
@@ -70,12 +73,15 @@ public class OAuthConsumerDAOTest extends TestOAuthDAOBase {
     @Mock
     private Parameters mockedParameters;
 
+    @Mock
+    private PlainTextPersistenceProcessor persistenceProcessor;
+
     @BeforeClass
     public void setUp() throws Exception {
 
         initiateH2Base(DB_NAME, getFilePath("h2.sql"));
 
-        int consumer_ID = createBaseOAuthApp(DB_NAME, CLIENT_ID, SECRET, USER_NAME, APP_NAME, CALLBACK, APP_STATE);
+        int consumer_ID = createBaseOAuthApp(DB_NAME, CLIENT_ID, SECRET, USER_NAME, APP_NAME, CALLBACK, APP_STATE, BACKCHANNELLOGOUT_URL);
         createAccessTokenTable(DB_NAME, consumer_ID, ACC_TOKEN, ACC_TOKEN_SECRET, SCOPE, AUTHZ_USER);
         createReqTokenTable(DB_NAME, consumer_ID, REQ_TOKEN, REQ_TOKEN_SECRET, SCOPE, CALLBACK, OAUTH_VERIFIER,
                 AUTHZ_USER);
@@ -441,6 +447,72 @@ public class OAuthConsumerDAOTest extends TestOAuthDAOBase {
 
             OAuthConsumerDAO consumerDAO = new OAuthConsumerDAO();
             assertEquals(consumerDAO.validateAccessToken(CLIENT_ID, ACC_TOKEN, SCOPE), AUTHZ_USER);
+        }
+    }
+
+    @Test
+    public void testIsConsumerSecretExist() throws Exception {
+        mockStatic(OAuthServerConfiguration.class);
+        when(OAuthServerConfiguration.getInstance()).thenReturn(mockedServerConfig);
+        PlainTextPersistenceProcessor processor = new PlainTextPersistenceProcessor();
+        when(mockedServerConfig.getPersistenceProcessor()).thenReturn(processor);
+
+        try (Connection connection1 = getConnection(DB_NAME)) {
+            mockStatic(IdentityDatabaseUtil.class);
+            when(IdentityDatabaseUtil.getDBConnection()).thenReturn(connection1);
+
+            OAuthConsumerDAO consumerDAO = new OAuthConsumerDAO();
+            assertEquals(consumerDAO.isConsumerSecretExist(CLIENT_ID, SECRET), true);
+        }
+    }
+
+    @Test
+    public void testIsConsumerSecretExistWithNotExistingConsumersecret() throws Exception {
+        mockStatic(OAuthServerConfiguration.class);
+        when(OAuthServerConfiguration.getInstance()).thenReturn(mockedServerConfig);
+        PlainTextPersistenceProcessor processor = new PlainTextPersistenceProcessor();
+        when(mockedServerConfig.getPersistenceProcessor()).thenReturn(processor);
+
+        try (Connection connection1 = getConnection(DB_NAME)) {
+            mockStatic(IdentityDatabaseUtil.class);
+            when(IdentityDatabaseUtil.getDBConnection()).thenReturn(connection1);
+
+            OAuthConsumerDAO consumerDAO = new OAuthConsumerDAO();
+            assertEquals(consumerDAO.isConsumerSecretExist(CLIENT_ID, NOT_EXISTING_SECRET), false);
+        }
+    }
+
+    @Test(expectedExceptions = IdentityOAuthAdminException.class)
+    public void testIsConsumerSecretExistWithExceptions() throws Exception {
+        mockStatic(OAuthServerConfiguration.class);
+        when(OAuthServerConfiguration.getInstance()).thenReturn(mockedServerConfig);
+        when(mockedServerConfig.getPersistenceProcessor()).thenReturn(persistenceProcessor);
+        doThrow(new IdentityOAuth2Exception("Test")).when(persistenceProcessor).getProcessedClientId(CLIENT_ID);
+
+        try (Connection connection1 = getConnection(DB_NAME)) {
+            Connection connection2 = spy(connection1);
+            mockStatic(IdentityDatabaseUtil.class);
+            when(IdentityDatabaseUtil.getDBConnection()).thenReturn(connection2);
+
+            OAuthConsumerDAO consumerDAO = new OAuthConsumerDAO();
+            consumerDAO.isConsumerSecretExist(CLIENT_ID, SECRET);
+        }
+    }
+
+    @Test(expectedExceptions = IdentityOAuthAdminException.class)
+    public void testIsConsumerSecretExistWithException() throws Exception {
+        mockStatic(OAuthServerConfiguration.class);
+        when(OAuthServerConfiguration.getInstance()).thenReturn(mockedServerConfig);
+        when(mockedServerConfig.getPersistenceProcessor()).thenReturn(persistenceProcessor);
+
+        try (Connection connection1 = getConnection(DB_NAME)) {
+            Connection connection2 = spy(connection1);
+            doThrow(new SQLException()).when(connection2).commit();
+            mockStatic(IdentityDatabaseUtil.class);
+            when(IdentityDatabaseUtil.getDBConnection()).thenReturn(connection2);
+
+            OAuthConsumerDAO consumerDAO = new OAuthConsumerDAO();
+            consumerDAO.isConsumerSecretExist(CLIENT_ID, SECRET);
         }
     }
 

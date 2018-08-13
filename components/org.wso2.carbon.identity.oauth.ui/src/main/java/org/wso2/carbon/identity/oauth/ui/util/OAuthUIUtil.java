@@ -18,12 +18,15 @@
 
 package org.wso2.carbon.identity.oauth.ui.util;
 
+import org.apache.commons.lang.ArrayUtils;
+import org.apache.commons.lang.StringUtils;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.wso2.carbon.identity.core.util.IdentityUtil;
 import org.wso2.carbon.identity.oauth.common.OAuthConstants;
 import org.wso2.carbon.identity.oauth.stub.dto.OAuthConsumerAppDTO;
-
+import java.net.URI;
+import java.net.URISyntaxException;
 import javax.servlet.http.HttpServletRequest;
 
 /**
@@ -32,6 +35,8 @@ import javax.servlet.http.HttpServletRequest;
 public class OAuthUIUtil {
 
     private static final Log log = LogFactory.getLog(OAuthUIUtil.class);
+    private static final String SCOPE_VALIDATOR_PREFIX = "scope_validator_";
+    private static final String TOKEN_TYPE_PREFIX = "token_type_";
 
     private OAuthUIUtil() {
 
@@ -48,7 +53,7 @@ public class OAuthUIUtil {
     public static String getAbsoluteEndpointURL(String endpointType, String oauthVersion, HttpServletRequest request) {
 
         String endpointURL = null;
-        if(oauthVersion.equals(OAuthConstants.OAuthVersions.VERSION_1A)){
+        if (oauthVersion.equals(OAuthConstants.OAuthVersions.VERSION_1A)) {
             endpointURL = IdentityUtil.getServerURL("/oauth" + endpointType, true, true);
         } else {
             endpointURL = IdentityUtil.getServerURL("/oauth2" + endpointType, true, false);
@@ -76,4 +81,52 @@ public class OAuthUIUtil {
         return returnedOAuthConsumerSet;
     }
 
+    /**
+     * This is used to verify the given URL is a valid or not
+     * @param uri URI to validate
+     * @return true if the uri is valid
+     */
+    public static boolean isValidURI(String uri) {
+        try {
+            new URI(uri);
+            return true;
+        } catch (URISyntaxException e) {
+            if (log.isDebugEnabled()) {
+                log.debug("Malformed URL: " + uri, e);
+            }
+            return false;
+        }
+    }
+
+    /**
+     * Ensures that returned audience array is not empty and does not contain any null values.
+     *
+     * @param audiences
+     * @return
+     */
+    public static boolean isAudienceNotEmpty(String[] audiences) {
+        if (ArrayUtils.isEmpty(audiences)) {
+            return false;
+        }
+
+        for (String audience : audiences) {
+            if (StringUtils.isNotEmpty(audience) && !StringUtils.equalsIgnoreCase(audience , "null")) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     *  Generate id for the scope validator
+     * @param name scope validator name
+     * @return scope validator id
+     */
+    public static String getScopeValidatorId(String name) {
+        return SCOPE_VALIDATOR_PREFIX + name.replaceAll(" ", "_");
+    }
+
+    public static String getTokenTypeId(String type) {
+        return TOKEN_TYPE_PREFIX + type.replaceAll(" ", "_");
+    }
 }

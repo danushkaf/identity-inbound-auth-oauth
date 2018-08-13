@@ -125,4 +125,23 @@ public final class OAuthUtil {
         return authenticatedUser;
     }
 
+    /**
+     * This is used to handle the OAuthAdminService exceptions. This will log the error message and return an
+     * IdentityOAuthAdminException exception
+     * @param message error message
+     * @param exception Exception.
+     * @return
+     */
+    public static IdentityOAuthAdminException handleError(String message, Exception exception) {
+        log.error(message);
+        if (exception == null) {
+            return new IdentityOAuthAdminException(message);
+        } else {
+            if (log.isDebugEnabled()) {
+                log.debug(exception);
+            }
+            return new IdentityOAuthAdminException(message, exception);
+        }
+    }
+
 }

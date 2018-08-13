@@ -20,25 +20,59 @@ package org.wso2.carbon.identity.oauth.dao;
 import org.wso2.carbon.identity.application.authentication.framework.model.AuthenticatedUser;
 
 import java.io.Serializable;
+import javax.xml.bind.annotation.XmlAccessType;
+import javax.xml.bind.annotation.XmlAccessorType;
+import javax.xml.bind.annotation.XmlElement;
+import javax.xml.bind.annotation.XmlElementWrapper;
+import javax.xml.bind.annotation.XmlRootElement;
+import javax.xml.bind.annotation.XmlTransient;
 
+@XmlRootElement
+@XmlAccessorType(XmlAccessType.FIELD)
 public class OAuthAppDO implements Serializable {
 
     private static final long serialVersionUID = -6453843721358989519L;
 
+    @XmlTransient
     private int id;
     private String oauthConsumerKey;
     private String oauthConsumerSecret;
     private String applicationName;
     private String callbackUrl;
+    @XmlTransient
     private AuthenticatedUser user;
     private String oauthVersion;
     private String grantTypes;
+    @XmlElementWrapper(name="scopeValidators")
+    @XmlElement(name = "scopeValidator")
+    private String[] scopeValidators;
     private boolean pkceSupportPlain;
     private boolean pkceMandatory;
     private String state;
     private long userAccessTokenExpiryTime;
     private long applicationAccessTokenExpiryTime;
     private long refreshTokenExpiryTime;
+    private long idTokenExpiryTime;
+    @XmlElementWrapper(name="audiences")
+    @XmlElement(name = "audience")
+    private String[] audiences = new String[0];
+    // OIDC related properties.
+    private boolean requestObjectSignatureValidationEnabled;
+    private boolean idTokenEncryptionEnabled;
+    private String idTokenEncryptionAlgorithm;
+    private String idTokenEncryptionMethod;
+    private String backChannelLogoutUrl;
+    private AuthenticatedUser appOwner;
+    private String tokenType;
+
+    public AuthenticatedUser getAppOwner() {
+
+        return appOwner;
+    }
+    public void setAppOwner(AuthenticatedUser appOwner) {
+
+        this.appOwner = appOwner;
+    }
 
     public AuthenticatedUser getUser() {
         return user;
@@ -96,6 +130,14 @@ public class OAuthAppDO implements Serializable {
         this.grantTypes = grantTypes;
     }
 
+    public String[] getScopeValidators() {
+        return scopeValidators;
+    }
+
+    public void setScopeValidators(String[] scopeValidators) {
+        this.scopeValidators = scopeValidators;
+    }
+
     public int getId() {
         return id;
     }
@@ -150,5 +192,70 @@ public class OAuthAppDO implements Serializable {
 
     public void setRefreshTokenExpiryTime(long refreshTokenExpiryTime) {
         this.refreshTokenExpiryTime = refreshTokenExpiryTime;
+    }
+
+    public String[] getAudiences() {
+        return audiences;
+    }
+
+    public void setAudiences(String[] audiences) {
+        this.audiences = audiences;
+    }
+
+    public boolean isRequestObjectSignatureValidationEnabled() {
+        return requestObjectSignatureValidationEnabled;
+    }
+
+    public void setRequestObjectSignatureValidationEnabled(boolean requestObjectSignatureValidationEnabled) {
+        this.requestObjectSignatureValidationEnabled = requestObjectSignatureValidationEnabled;
+    }
+
+    public boolean isIdTokenEncryptionEnabled() {
+        return idTokenEncryptionEnabled;
+    }
+
+    public void setIdTokenEncryptionEnabled(boolean idTokenEncryptionEnabled) {
+        this.idTokenEncryptionEnabled = idTokenEncryptionEnabled;
+    }
+
+    public String getIdTokenEncryptionAlgorithm() {
+        return idTokenEncryptionAlgorithm;
+    }
+
+    public void setIdTokenEncryptionAlgorithm(String idTokenEncryptionAlgorithm) {
+        this.idTokenEncryptionAlgorithm = idTokenEncryptionAlgorithm;
+    }
+
+    public String getIdTokenEncryptionMethod() {
+        return idTokenEncryptionMethod;
+    }
+
+    public void setIdTokenEncryptionMethod(String idTokenEncryptionMethod) {
+        this.idTokenEncryptionMethod = idTokenEncryptionMethod;
+    }
+
+    public void setBackChannelLogoutUrl(String backChannelLogoutUrl) {
+        this.backChannelLogoutUrl = backChannelLogoutUrl;
+    }
+
+    public String getBackChannelLogoutUrl() {
+        return backChannelLogoutUrl;
+    }
+
+    public long getIdTokenExpiryTime() {
+
+        return idTokenExpiryTime;
+    }
+
+    public void setIdTokenExpiryTime(long idTokenExpiryTime) {
+        this.idTokenExpiryTime = idTokenExpiryTime;
+    }
+
+    public String getTokenType() {
+        return tokenType;
+    }
+
+    public void setTokenType(String tokenType) {
+        this.tokenType = tokenType;
     }
 }
